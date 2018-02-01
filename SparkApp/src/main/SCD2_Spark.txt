@@ -1,0 +1,86 @@
+Before the change: 
+Customer_ID|Customer_Name|Customer_Type|Start_Date||End_Date||Current_Flag
+1|Cust_1|Corporate|22-07-2010|31-12-9999|Y
+
+
+After the change: 
+Customer_ID|Customer_Name|Customer_Type|Start_Date|End_Date|Current_Flag
+1|Cust_1|Corporate|22-07-2010|17-05-2012|N
+1|Cust_1|Retail| 18-05-2012|31-12-9999|Y
+
+baste Table
+Customer_ID|Customer_Name|Customer_Type|Start_Date|End_Date|Current_Flag
+1|Cust_1|Corporate|22-07-2010|31-12-9999|Y
+2|Cust_2|Corporate|22-07-2010|31-12-9999|Y
+3|Cust_3|Corporate|22-07-2010|31-12-9999|Y
+4|Cust_4|Retail|22-07-2010|31-12-9999|Y
+5|Cust_5|Retail|22-07-2010|31-12-9999|Y
+6|Cust_6|Retail|22-07-2010|31-12-9999|Y
+
+Incremental table
+Customer_ID|Customer_Name|Customer_Type|Start_Date|End_Date|Current_Flag
+3|Cust_3|Retail|22-07-2012|31-12-9999|Y
+4|Cust_4|Retail||22-07-2013|31-12-9999|Y
+
+
+
+3|Cust_3|Retail|22-07-2012|31-12-9999|Y
+4|Cust_4|Retail||22-07-2013|31-12-9999|Y
+3|Cust_3|Corporate|22-07-2010|22-07-2012|N
+4|Cust_4|Retail|22-07-2010|22-07-2013|N
+
+
+Customer_ID:Int,Customer_Name:String,Customer_Type:String,Start_Date:String,End_Date:String,Current_Flag:String 
+
+User(x(0),x(1),x(2),x(3),x(4),x(5))
+
+$SPARK_HOME/bin/spark-shell --packages com.databricks:spark-csv_2.10:1.4.0
+
+case class User(Customer_ID:Int,Customer_Name:String,Customer_Type:String,Start_Date:String,End_Date:String,Current_Flag:String )
+
+val users = sqlContext.read.format("com.databricks.spark.csv").option("header", "true").option("inferSchema", "true").option("delimiter", ",").load("file:/home/hadoop/SCD2/basefile").as[User]
+val iusers = sqlContext.read.format("com.databricks.spark.csv").option("header", "true").option("inferSchema", "true").option("delimiter", ",").load("file:/home/hadoop/SCD2/Incrementalfile").as[User]
+
+val users = sc.textFile("file:/home/hadoop/SCD2/basefile").as[User]
+val iusers = sc.textFile("file:/home/hadoop/SCD2/Incrementalfile").as[User]
+
+
+val combinedusers = users.union(iusers)
+
+val userpairs = combinedusers.map(u=>(u.Customer_ID,u))
+val userdf = users.toDF
+val iuserdf = iusers.toDF
+val grpusers = userpairs.groupBy()
+val urdd = userdf.rdd.map(row=>(row(0),row))
+val iurdd = iuserdf.rdd.map(row=>(row(0),row))
+val result =urdd.join(iurdd)
+
+
+val old = users.map(user=>(user.Customer_ID,user))
+val newu = iusers.map(user=>(user.Customer_ID,user))
+
+val trdd = old.map{case(x,y)=>(x,y.Start_Date)}
+val ordd = newu.map{case(x,y)=>(x,y.Start_Date)} 
+val r = trdd.rdd.join(ordd.rdd);
+val u = r.map{case(x,(y,z))=>(x,(z,y))}
+
+val updatevalues = u.map{case(x,(y,z))=>(x,y)}
+
+val userdf = users.toDF
+val iuserdf = iusers.toDF
+
+userdf.registerTempTable("userdf")
+iuserdf.registerTempTable("iuserdf")
+
+val updatevalues = u.map{case(x,(y,z))=>(x,y)}
+updatevalues.map{case(x,y)=>(sqlContext.sql("update userdf set End_Date='"+y+"' where Customer_ID ='"+x+"'") )}
+
+
+3|Cust_3|Corporate|22-07-2010|31-12-9999|Y
+
+3|Cust_3|Retail|22-07-2012|31-12-9999|Y
+
+
+3|Cust_3|Corporate|22-07-2010|22-07-2012|N
+3|Cust_3|Retail|22-07-2012|31-12-9999|Y
+

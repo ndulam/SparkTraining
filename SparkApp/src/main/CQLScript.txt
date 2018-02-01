@@ -1,0 +1,26 @@
+  Need to create following keyspace and column family in cassandra before running this example
+  Start CQL shell using ./bin/cqlsh and execute following commands
+  CREATE KEYSPACE Amazon WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};
+  use Amazon;
+  CREATE TABLE salecount (prod_id text, sale_count int, PRIMARY KEY (prod_id));
+  CREATE TABLE ordercf (user_id text,
+    time timestamp,
+    prod_id text,
+    quantity int,
+    PRIMARY KEY (user_id, time));
+  INSERT INTO ordercf (user_id,
+    time,
+    prod_id,
+    quantity) VALUES  ('bob', 1385983646000, 'iphone', 1);
+  INSERT INTO ordercf (user_id,
+    time,
+    prod_id,
+    quantity) VALUES ('tom', 1385983647000, 'samsung', 4);
+  INSERT INTO ordercf (user_id,
+    time,
+    prod_id,
+    quantity) VALUES ('dora', 1385983648000, 'nokia', 2);
+  INSERT INTO ordercf (user_id,
+    time,
+    prod_id,
+    quantity) VALUES ('charlie', 1385983649000, 'iphone', 2);
